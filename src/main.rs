@@ -1,0 +1,63 @@
+use actix_web::web::{get, post, Data};
+use actix_web::{guard, middleware, web, App, HttpResponse, HttpServer};
+use anyhow::{Context, Result};
+use async_graphql::EmptyMutation;
+use async_graphql::{
+    http::{playground_source, GraphQLPlaygroundConfig},
+    EmptySubscription, Object, Schema,
+};
+mod fetch;
+use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use fetch::Response;
+use log::info;
+
+struct QueryRoot;
+
+#[Object]
+impl QueryRoot {
+    async fn fetch(&self) -> Result<Response> {
+        let res = fetch::all_fetch().await?;
+        Ok(res)
+    }
+}
+
+type MuscleSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
+
+async fn index(schema: Data<MuscleSchema>, req: GraphQLRequest) -> GraphQLResponse {
+    schema.execute(req.into_inner()).await.into()
+}
+
+async fn index_playground() -> Result<HttpResponse> {
+    let source = playground_source(GraphQLPlaygroundConfig::new("/").subscription_endpoint("/"));
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(source))
+}
+
+#[actix_web::main] // or #[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
+
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
+
+    HttpServer::new(move || {
+        App::new()
+            .wrap(middleware::Logger::default())
+            .configure(api)
+            .app_data(Data::new(schema.clone()))
+            .service(web::resource("/").guard(guard::Get()).to(index_playground))
+            .service(web::resource("/").guard(guard::Post()).to(index))
+    })
+    .bind(("127.0.0.1", 8000))?
+    .workers(1)
+    .run()
+    .await
+}
+
+pub fn api(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/api")
+            .service(web::resource("/").guard(guard::Get()).to(index_playground))
+            .service(web::resource("/").guard(guard::Get()).to(index)),
+    );
+}
