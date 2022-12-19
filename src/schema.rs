@@ -3,11 +3,11 @@
 diesel::table! {
     articles (id) {
         id -> Varchar,
-        title -> Nullable<Varchar>,
-        auther -> Nullable<Varchar>,
+        title -> Varchar,
+        auther -> Varchar,
         media -> Varchar,
         url -> Varchar,
-        summary -> Nullable<Varchar>,
+        summary -> Varchar,
         created_at -> Datetime,
         crawled_at -> Datetime,
     }

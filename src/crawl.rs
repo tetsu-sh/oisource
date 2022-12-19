@@ -16,7 +16,7 @@ use std::str::FromStr;
 use std::{collections::HashMap, env};
 
 #[derive(Serialize, Deserialize, Debug, SimpleObject, Clone)]
-struct Article {
+pub struct Article {
     id: String,
     title: String,
     auther: String,
@@ -35,7 +35,7 @@ struct QiitaArticle {
     created_at: String,
 }
 
-#[derive(Debug, Queryable, Insertable)]
+#[derive(Debug, Queryable, Insertable, Identifiable, Clone)]
 #[table_name = "articles"]
 struct ArticleRDB {
     pub id: String,
@@ -62,6 +62,15 @@ impl ArticleRDB {
         Ok(())
     }
 
+    fn scan(conn: &MysqlConnection) -> Result<Vec<Article>, MyError> {
+        let articlerdbs = articles::table.load::<ArticleRDB>(conn)?;
+        let articles = articlerdbs
+            .into_iter()
+            .map(|articlerdb| ArticleRDB::to_domain(articlerdb))
+            .collect::<Vec<Article>>();
+        Ok(articles)
+    }
+
     fn from_domain(article: Article) -> ArticleRDB {
         info!("{:?}", article);
         ArticleRDB {
@@ -78,7 +87,18 @@ impl ArticleRDB {
         }
     }
 
-    fn to_domain() {}
+    fn to_domain(article_rdb: ArticleRDB) -> Article {
+        Article {
+            id: article_rdb.id,
+            title: article_rdb.title,
+            auther: article_rdb.auther,
+            media: article_rdb.media,
+            url: article_rdb.url,
+            summary: article_rdb.summary,
+            created_at: article_rdb.created_at.to_string(),
+            crawled_at: article_rdb.crawled_at.to_string(),
+        }
+    }
 }
 
 impl QiitaArticle {
@@ -96,7 +116,7 @@ impl QiitaArticle {
     }
 }
 
-pub async fn all_fetch() -> Result<(), MyError> {
+pub async fn crawl() -> Result<(), MyError> {
     // qiita
     dotenv().ok();
     let conn = _establish_connection();
@@ -113,6 +133,15 @@ pub async fn all_fetch() -> Result<(), MyError> {
     ArticleRDB::store_batch(&conn, records);
 
     Ok(())
+}
+
+pub async fn scan() -> Result<Vec<Article>, MyError> {
+    dotenv().ok();
+    let conn = _establish_connection();
+    let pool = establish_connection();
+    let conn = pool.get()?;
+    let record = ArticleRDB::scan(&conn);
+    record
 }
 
 fn _establish_connection() -> MysqlConnection {
