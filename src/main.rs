@@ -1,23 +1,28 @@
 use actix_web::web::{get, post, Data};
-use actix_web::{guard, middleware, web, App, HttpResponse, HttpServer};
-use anyhow::{Context, Result};
+use actix_web::{guard, middleware, web, App, HttpResponse, HttpServer, Result};
 use async_graphql::EmptyMutation;
 use async_graphql::{
     http::{playground_source, GraphQLPlaygroundConfig},
     EmptySubscription, Object, Schema,
 };
+#[macro_use]
+extern crate diesel;
+mod constants;
 mod fetch;
+mod schema;
+mod utils;
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use fetch::Response;
 use log::info;
+use utils::errors::MyError;
 
 struct QueryRoot;
 
 #[Object]
 impl QueryRoot {
-    async fn fetch(&self) -> Result<Response> {
+    async fn fetch(&self) -> Result<String, MyError> {
         let res = fetch::all_fetch().await?;
-        Ok(res)
+        Ok("sss".to_string())
     }
 }
 
@@ -39,6 +44,9 @@ async fn main() -> std::io::Result<()> {
     let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
 
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
+
+    let pool = utils::db::establish_connection();
+    let app_state = utils::state::AppState { pool };
 
     HttpServer::new(move || {
         App::new()

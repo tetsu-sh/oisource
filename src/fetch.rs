@@ -1,19 +1,19 @@
-use anyhow::{Context, Result};
+use crate::schema::articles;
+use crate::utils::db::establish_connection;
+use crate::utils::errors::MyError;
 use async_graphql::SimpleObject;
 use async_trait::async_trait;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
+use diesel::prelude::*;
+use diesel::MysqlConnection;
 use dotenv::dotenv;
 use log::info;
 use reqwest;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use std::{collections::HashMap, env};
-
-enum MyError {
-    SerdeJson(serde_json::Error),
-    Reqwest(reqwest::Error),
-}
 
 #[derive(Serialize, Deserialize, Debug, SimpleObject, Clone)]
 struct Article {
@@ -35,6 +35,52 @@ struct QiitaArticle {
     created_at: String,
 }
 
+#[derive(Debug, Queryable, Insertable)]
+#[table_name = "articles"]
+struct ArticleRDB {
+    pub id: String,
+    pub title: String,
+    pub auther: String,
+    pub media: String,
+    pub url: String,
+    pub summary: String,
+    pub created_at: NaiveDateTime,
+    pub crawled_at: NaiveDateTime,
+}
+
+impl ArticleRDB {
+    fn store(self, conn: &MysqlConnection) -> Result<(), MyError> {
+        diesel::insert_into(articles::table)
+            .values(&self)
+            .execute(conn)?;
+        Ok(())
+    }
+    fn store_batch(conn: &MysqlConnection, records: Vec<ArticleRDB>) -> Result<(), MyError> {
+        diesel::insert_into(articles::table)
+            .values(records)
+            .execute(conn)?;
+        Ok(())
+    }
+
+    fn from_domain(article: Article) -> ArticleRDB {
+        info!("{:?}", article);
+        ArticleRDB {
+            id: article.id,
+            title: article.title,
+            auther: article.auther,
+            media: article.media,
+            url: article.url,
+            summary: article.summary,
+            created_at: NaiveDateTime::parse_from_str(&article.created_at, "%Y-%m-%dT%H:%M:%S%:z")
+                .unwrap(),
+            crawled_at: NaiveDateTime::parse_from_str(&article.crawled_at, "%Y-%m-%d %H:%M:%S%.9f")
+                .unwrap(),
+        }
+    }
+
+    fn to_domain() {}
+}
+
 impl QiitaArticle {
     fn to_article(&self, crawler: &QiitaCrawler) -> Article {
         Article {
@@ -45,19 +91,34 @@ impl QiitaArticle {
             url: self.url.clone(),
             summary: "".to_string().clone(),
             created_at: self.created_at.clone(),
-            crawled_at: crawler.crawled_at,
+            crawled_at: crawler.crawled_at.clone(),
         }
     }
 }
 
-pub async fn all_fetch() -> Result<Response> {
+pub async fn all_fetch() -> Result<(), MyError> {
     // qiita
     dotenv().ok();
+    let conn = _establish_connection();
+    let pool = establish_connection();
+    let conn = pool.get()?;
     let access_token = env::var("QIITA_ACCESS_TOKEN").expect("qiita access token is not set");
     let qiita_user_id = env::var("QIITA_USER_ID").expect("qiita user id is not set");
     let qiita_qrawler = QiitaCrawler::new(access_token, qiita_user_id);
-    let message = qiita_qrawler.fetch().await?;
-    Ok(message)
+    let qiita_articles = qiita_qrawler.fetch().await?;
+    let records = qiita_articles
+        .into_iter()
+        .map(|article| ArticleRDB::from_domain(article))
+        .collect::<Vec<ArticleRDB>>();
+    ArticleRDB::store_batch(&conn, records);
+
+    Ok(())
+}
+
+fn _establish_connection() -> MysqlConnection {
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    MysqlConnection::establish(&database_url)
+        .expect(&format!("Error connecting to {}", database_url))
 }
 
 #[derive(Serialize, Deserialize, Debug, SimpleObject, Clone)]
@@ -68,7 +129,7 @@ pub struct Response {
 #[async_trait]
 trait Crawl {
     fn media(&self) -> String;
-    async fn fetch(&self) -> Result<Response>;
+    async fn fetch(&self) -> Result<Vec<Article>, MyError>;
 }
 
 struct TweetCrawler {
@@ -83,7 +144,7 @@ struct QiitaCrawler {
 }
 impl QiitaCrawler {
     fn new(access_token: String, user_id: String) -> Self {
-        let crawled_at = Local::now().to_string();
+        let crawled_at = Local::now().naive_local().to_string();
         QiitaCrawler {
             access_token,
             user_id,
@@ -97,7 +158,7 @@ impl Crawl for QiitaCrawler {
     fn media(&self) -> String {
         "qiita".to_string()
     }
-    async fn fetch(&self) -> Result<Response> {
+    async fn fetch(&self) -> Result<Vec<Article>, MyError> {
         let client = reqwest::Client::new();
         let mut map: HashMap<String, String> = HashMap::new();
         let body = client
@@ -115,8 +176,6 @@ impl Crawl for QiitaCrawler {
             .iter()
             .map(|article| article.to_article(self))
             .collect::<Vec<Article>>();
-        Ok(Response {
-            articles: qiita_articles,
-        })
+        Ok(qiita_articles)
     }
 }
