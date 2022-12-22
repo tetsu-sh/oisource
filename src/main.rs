@@ -7,12 +7,15 @@ use async_graphql::{
 };
 #[macro_use]
 extern crate diesel;
+mod article;
 mod constants;
 mod crawl;
+mod fetch;
 mod schema;
+mod store;
 mod utils;
+use article::Article;
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-use crawl::{Article, Response};
 use log::info;
 use utils::errors::MyError;
 
@@ -26,7 +29,7 @@ impl QueryRoot {
     }
 
     async fn scan(&self) -> Result<Vec<Article>, MyError> {
-        let res = crawl::scan().await?;
+        let res = fetch::fetch()?;
         Ok(res)
     }
 }
