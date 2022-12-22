@@ -1,33 +1,17 @@
 use crate::article::{Article, QiitaArticle};
-use crate::store::model::store_rdb;
-use crate::utils::db::establish_connection;
 use crate::utils::errors::MyError;
 use async_trait::async_trait;
 use chrono::Local;
-use dotenv::dotenv;
 use reqwest;
 use std::{collections::HashMap, env};
 
-pub async fn crawl() -> Result<(), MyError> {
+pub async fn crawl() -> Result<Vec<Article>, MyError> {
     // qiita
-    dotenv().ok();
-    let pool = establish_connection();
-    let conn = pool.get()?;
     let access_token = env::var("QIITA_ACCESS_TOKEN").expect("qiita access token is not set");
     let qiita_user_id = env::var("QIITA_USER_ID").expect("qiita user id is not set");
     let qiita_qrawler = QiitaCrawler::new(access_token, qiita_user_id);
     let qiita_articles = qiita_qrawler.fetch().await?;
-    write_csv(&qiita_articles);
-    store_rdb(&conn, &qiita_articles);
-    Ok(())
-}
-
-use csv::Writer;
-pub fn write_csv(records: &Vec<Article>) {
-    let mut wtr = Writer::from_path("test.csv").unwrap();
-    for record in records.iter() {
-        wtr.serialize(record);
-    }
+    Ok(qiita_articles)
 }
 
 #[async_trait]

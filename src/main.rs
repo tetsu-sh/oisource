@@ -5,12 +5,15 @@ use async_graphql::{
     http::{playground_source, GraphQLPlaygroundConfig},
     EmptySubscription, Object, Schema,
 };
+use dotenv::dotenv;
+
 #[macro_use]
 extern crate diesel;
 mod article;
 mod constants;
 mod crawl;
 mod fetch;
+mod output;
 mod schema;
 mod store;
 mod utils;
@@ -23,20 +26,38 @@ struct QueryRoot;
 
 #[Object]
 impl QueryRoot {
-    async fn crawl(&self) -> Result<String, MyError> {
-        let res = crawl::crawl().await?;
-        Ok("sss".to_string())
-    }
-
     async fn scan(&self) -> Result<Vec<Article>, MyError> {
-        let res = fetch::fetch()?;
+        let pool = utils::db::establish_connection();
+        let conn = pool.get()?;
+        let res = store::model::scan(&conn)?;
         Ok(res)
     }
 }
 
-type MuscleSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
+struct MutationRoot;
 
-async fn index(schema: Data<MuscleSchema>, req: GraphQLRequest) -> GraphQLResponse {
+#[Object]
+impl MutationRoot {
+    async fn crawl_and_store(&self) -> Result<Vec<Article>, MyError> {
+        let res = crawl::crawl().await?;
+        let pool = utils::db::establish_connection();
+        let conn = pool.get()?;
+        store::model::store_rdb(&conn, &res);
+        Ok(res)
+    }
+
+    async fn gen_csv_from_record(&self) -> Result<Vec<Article>, MyError> {
+        let pool = utils::db::establish_connection();
+        let conn = pool.get()?;
+        let res = fetch::fetch(&conn)?;
+        output::write_csv(&res);
+        Ok(res)
+    }
+}
+
+type OiSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
+
+async fn index(schema: Data<OiSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
 }
 
@@ -55,6 +76,7 @@ async fn main() -> std::io::Result<()> {
 
     let pool = utils::db::establish_connection();
     let app_state = utils::state::AppState { pool };
+    dotenv().ok();
 
     HttpServer::new(move || {
         App::new()

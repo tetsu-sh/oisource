@@ -2,9 +2,8 @@ use crate::article::Article;
 use crate::store::model::scan;
 use crate::utils::db::establish_connection;
 use crate::utils::errors::MyError;
+use diesel::MysqlConnection;
 
-pub fn fetch() -> Result<Vec<Article>, MyError> {
-    let pool = establish_connection();
-    let conn = pool.get()?;
+pub fn fetch(conn: &MysqlConnection) -> Result<Vec<Article>, MyError> {
     scan(&conn)
 }
