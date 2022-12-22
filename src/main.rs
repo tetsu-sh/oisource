@@ -41,6 +41,7 @@ struct MutationRoot;
 impl MutationRoot {
     async fn crawl_and_store(&self) -> Result<Vec<Article>, MyError> {
         let res = crawl::crawl().await?;
+        println!("{}", res.len());
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
         store::model::store_rdb(&conn, &res);
@@ -56,7 +57,7 @@ impl MutationRoot {
     }
 }
 
-type OiSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
+type OiSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
 async fn index(schema: Data<OiSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
@@ -71,7 +72,7 @@ async fn index_playground() -> Result<HttpResponse> {
 
 #[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
+    let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription).finish();
 
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
@@ -82,6 +83,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let cors = Cors::default()
             .allowed_origin("http://localhost:3000")
+            .allowed_origin("http://localhost:8000")
             .allowed_origin_fn(|origin, _req_head| origin.as_bytes().ends_with(b".rust-lang.org"))
             .allowed_methods(vec!["GET", "POST"])
             .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
