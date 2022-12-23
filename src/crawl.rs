@@ -1,10 +1,11 @@
-use crate::article::{Article, QiitaArticle};
+use crate::article::{Article, Media, QiitaArticle};
 use crate::store;
 use crate::store::model::store_rdb;
 use crate::utils::errors::MyError;
 use async_trait::async_trait;
 use chrono::Local;
 use reqwest::{self, Client};
+use serde_json::json;
 use std::{collections::HashMap, env};
 
 pub async fn crawl() -> Result<Vec<Article>, MyError> {
@@ -25,6 +26,33 @@ pub async fn crawl() -> Result<Vec<Article>, MyError> {
         page_num += 1;
     }
     Ok(articles)
+}
+
+pub async fn crawl_to_update(latest_one: Article) -> Result<Vec<Article>, MyError> {
+    // qiita
+    let access_token = env::var("QIITA_ACCESS_TOKEN").expect("qiita access token is not set");
+    let qiita_user_id = env::var("QIITA_USER_ID").expect("qiita user id is not set");
+    let qiita_qrawler = QiitaCrawler::new(access_token, qiita_user_id);
+    let mut page_num = 1;
+    let per_page = 20;
+    // fetch items.
+    // 20こくらいクロールして、latestと比較して、  一致するまで探す。O(n)だけど大した数じゃないのでOK
+    let mut articles_to_update = vec![];
+    loop {
+        let partial_articles = qiita_qrawler.fetch(page_num, per_page).await?;
+        for article in partial_articles.iter() {
+            if latest_one == *article {
+                break;
+            } else {
+                articles_to_update.push(article.clone());
+            }
+        }
+        if partial_articles.is_empty() {
+            break;
+        }
+        page_num += 1;
+    }
+    Ok(articles_to_update)
 }
 
 pub async fn latest_one() -> Result<Article, MyError> {

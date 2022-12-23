@@ -6,6 +6,7 @@ use async_graphql::{
     http::{playground_source, GraphQLPlaygroundConfig},
     EmptySubscription, Object, Schema,
 };
+use diesel::MysqlConnection;
 use dotenv::dotenv;
 
 #[macro_use]
@@ -18,7 +19,7 @@ mod output;
 mod schema;
 mod store;
 mod utils;
-use article::Article;
+use article::{Article, Media};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use log::info;
 use utils::errors::MyError;
@@ -36,7 +37,7 @@ impl QueryRoot {
     async fn is_latest(&self) -> Result<bool, MyError> {
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
-        let media = "qiita".to_string();
+        let media = Media::Qiita;
         let stored_one = store::model::latest_one(&conn, media)?;
         let crawled_one = crawl::latest_one().await?;
         Ok(stored_one == crawled_one)
@@ -47,16 +48,26 @@ struct MutationRoot;
 
 #[Object]
 impl MutationRoot {
-    async fn crawl_and_store(&self) -> Result<Vec<Article>, MyError> {
+    async fn full_crawl_and_store(&self) -> Result<Vec<Article>, MyError> {
         let res = crawl::crawl().await?;
-        println!("{}", res.len());
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
     }
+    /// 差分アップデート
+    /// 追加のみ対応
+    async fn crawl_and_store(&self) -> Result<Vec<Article>, MyError> {
+        let pool = utils::db::establish_connection();
+        let conn = pool.get()?;
+        let media = Media::Qiita;
+        let latest_one = store::model::latest_one(&conn, media)?;
+        let res = crawl::crawl_to_update(latest_one).await?;
+        store::model::store_rdb(&conn, &res);
+        Ok(res)
+    }
 
-    async fn gen_csv_from_record(&self) -> Result<Vec<Article>, MyError> {
+    async fn gen_csv_from_store(&self) -> Result<Vec<Article>, MyError> {
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
         let res = fetch::fetch(&conn)?;

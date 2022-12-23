@@ -1,5 +1,6 @@
 use async_graphql::SimpleObject;
 use serde::{Deserialize, Serialize};
+use strum_macros::{Display, EnumString};
 
 #[derive(Serialize, Deserialize, Debug, SimpleObject, Clone, PartialEq)]
 pub struct Article {
@@ -34,4 +35,9 @@ impl QiitaArticle {
             crawled_at,
         }
     }
+}
+
+#[derive(Debug, Clone, EnumString, Display)]
+pub enum Media {
+    Qiita,
 }

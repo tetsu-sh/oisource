@@ -1,4 +1,5 @@
 use crate::article::Article;
+use crate::article::Media;
 use crate::schema::articles;
 use crate::schema::articles::created_at;
 use crate::schema::articles::id;
@@ -19,7 +20,7 @@ pub fn scan(conn: &MysqlConnection) -> Result<Vec<Article>, MyError> {
     records
 }
 
-pub fn latest_one(conn: &MysqlConnection, media: String) -> Result<Article, MyError> {
+pub fn latest_one(conn: &MysqlConnection, media: Media) -> Result<Article, MyError> {
     ArticleRDB::latest_one_in_media(conn, media)
 }
 
@@ -49,11 +50,11 @@ impl ArticleRDB {
             .execute(conn)?;
         Ok(())
     }
-    pub fn latest_one_in_media(conn: &MysqlConnection, media: String) -> Result<Article, MyError> {
+    pub fn latest_one_in_media(conn: &MysqlConnection, media: Media) -> Result<Article, MyError> {
         // そこまでのデータ数にはならないので、indexで対応する。
         // データが多くなりそうなら、latestテーブルなどを検討する。
         let record = articles::table
-            .filter(articles::media.eq(media))
+            .filter(articles::media.eq(media.to_string()))
             .order_by(created_at.desc())
             .first::<ArticleRDB>(conn)?;
         Ok(record.to_domain())
