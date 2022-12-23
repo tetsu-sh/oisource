@@ -7,5 +7,7 @@ create table articles(
     url varchar(100) not null, 
     summary varchar(100) not null, 
     created_at datetime not null, 
-    crawled_at datetime not null
+    crawled_at datetime not null,
+    index media_index(media),
+    index created_at_index(created_at)
 );
