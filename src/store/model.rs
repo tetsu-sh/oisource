@@ -1,5 +1,7 @@
 use crate::article::Article;
 use crate::schema::articles;
+use crate::schema::articles::created_at;
+use crate::schema::articles::id;
 use crate::utils::errors::MyError;
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
 use diesel::prelude::*;
@@ -13,13 +15,17 @@ pub fn store_rdb(conn: &MysqlConnection, records: &Vec<Article>) {
     ArticleRDB::store_batch(&conn, records);
 }
 pub fn scan(conn: &MysqlConnection) -> Result<Vec<Article>, MyError> {
-    let record = ArticleRDB::scan(&conn);
-    record
+    let records = ArticleRDB::scan(&conn);
+    records
+}
+
+pub fn latest_one(conn: &MysqlConnection, media: String) -> Result<Article, MyError> {
+    ArticleRDB::latest_one_in_media(conn, media)
 }
 
 #[derive(Debug, Queryable, Insertable, Identifiable, Clone)]
 #[table_name = "articles"]
-struct ArticleRDB {
+pub struct ArticleRDB {
     pub id: String,
     pub title: String,
     pub auther: String,
@@ -43,12 +49,21 @@ impl ArticleRDB {
             .execute(conn)?;
         Ok(())
     }
+    pub fn latest_one_in_media(conn: &MysqlConnection, media: String) -> Result<Article, MyError> {
+        // そこまでのデータ数にはならないので、indexで対応する。
+        // データが多くなりそうなら、latestテーブルなどを検討する。
+        let record = articles::table
+            .filter(articles::media.eq(media))
+            .order_by(created_at.desc())
+            .first::<ArticleRDB>(conn)?;
+        Ok(record.to_domain())
+    }
 
     fn scan(conn: &MysqlConnection) -> Result<Vec<Article>, MyError> {
         let articlerdbs = articles::table.load::<ArticleRDB>(conn)?;
         let articles = articlerdbs
             .into_iter()
-            .map(|articlerdb| ArticleRDB::to_domain(&articlerdb))
+            .map(|articlerdb| articlerdb.to_domain())
             .collect::<Vec<Article>>();
         Ok(articles)
     }
@@ -68,16 +83,16 @@ impl ArticleRDB {
         }
     }
 
-    fn to_domain(article_rdb: &ArticleRDB) -> Article {
+    fn to_domain(&self) -> Article {
         Article {
-            id: article_rdb.id.clone(),
-            title: article_rdb.title.clone(),
-            auther: article_rdb.auther.clone(),
-            media: article_rdb.media.clone(),
-            url: article_rdb.url.clone(),
-            summary: article_rdb.summary.clone(),
-            created_at: article_rdb.created_at.to_string(),
-            crawled_at: article_rdb.crawled_at.to_string(),
+            id: self.id.clone(),
+            title: self.title.clone(),
+            auther: self.auther.clone(),
+            media: self.media.clone(),
+            url: self.url.clone(),
+            summary: self.summary.clone(),
+            created_at: self.created_at.to_string(),
+            crawled_at: self.crawled_at.to_string(),
         }
     }
 }

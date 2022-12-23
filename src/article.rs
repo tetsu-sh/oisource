@@ -1,7 +1,7 @@
 use async_graphql::SimpleObject;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, SimpleObject, Clone)]
+#[derive(Serialize, Deserialize, Debug, SimpleObject, Clone, PartialEq)]
 pub struct Article {
     pub id: String,
     pub title: String,

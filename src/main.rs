@@ -33,6 +33,14 @@ impl QueryRoot {
         let res = store::model::scan(&conn)?;
         Ok(res)
     }
+    async fn is_latest(&self) -> Result<bool, MyError> {
+        let pool = utils::db::establish_connection();
+        let conn = pool.get()?;
+        let media = "qiita".to_string();
+        let stored_one = store::model::latest_one(&conn, media)?;
+        let crawled_one = crawl::latest_one().await?;
+        Ok(stored_one == crawled_one)
+    }
 }
 
 struct MutationRoot;
