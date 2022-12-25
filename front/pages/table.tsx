@@ -5,7 +5,8 @@ import {
   GridValueGetterParams,
   GridToolbar,
 } from "@mui/x-data-grid";
-import { Box } from "@mui/material";
+import { Box, Button } from "@mui/material";
+import { AccessAlarm } from "@mui/icons-material";
 
 import { gql, useQuery } from "@apollo/client";
 import client from "./api/apolloClient";
@@ -47,6 +48,25 @@ const columns: GridColDef[] = [
   },
 ];
 
+function full_crawl() {
+  const { loading, error, data } = useQuery(gql`
+    {
+      fullCrawlAndStore {
+        id
+        title
+        auther
+        media
+        url
+        summary
+        createdAt
+        crawledAt
+      }
+    }
+  `);
+  if (loading) return "Loading...";
+  if (error) return `Error! ${error.message}`;
+}
+
 export default function DataTable() {
   const { loading, error, data } = useQuery(gql`
     {
@@ -65,8 +85,29 @@ export default function DataTable() {
   if (loading) return "Loading...";
   if (error) return `Error! ${error.message}`;
   console.log(data);
+  function is_latest() {
+    const { loading, error, data } = useQuery(gql`
+      {
+        isLatest {
+          
+        }
+      }
+    `);
+    console.log(data);
+  }
+  function update() {}
+
   return (
     <div style={{ height: 1000, width: "100%" }}>
+      <Button variant="contained" onClick={update}>
+        update
+      </Button>
+      <Button variant="contained" onClick={full_crawl}>
+        full crawl
+      </Button>
+      <Button variant="contained" onClick={is_latest}>
+        is latest
+      </Button>
       <DataGrid
         components={{ Toolbar: GridToolbar }}
         initialState={{

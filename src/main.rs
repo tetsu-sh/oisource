@@ -67,6 +67,11 @@ impl MutationRoot {
         Ok(res)
     }
 
+    async fn youtube_crawl(&self) -> Result<String, MyError> {
+        crawl::youtube_crawl_unauthorized().await?;
+        Ok("ok".to_string())
+    }
+
     async fn gen_csv_from_store(&self) -> Result<Vec<Article>, MyError> {
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
