@@ -1,4 +1,5 @@
 use async_graphql::SimpleObject;
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
@@ -31,7 +32,7 @@ impl QiitaArticle {
             media,
             url: self.url.clone(),
             summary: "".to_string().clone(),
-            created_at: self.created_at.clone(),
+            created_at: DatetimeFormatter::qiita_to(&self.created_at),
             crawled_at,
         }
     }
@@ -40,4 +41,20 @@ impl QiitaArticle {
 #[derive(Debug, Clone, EnumString, Display)]
 pub enum Media {
     Qiita,
+    Youtube,
+}
+pub struct DatetimeFormatter {}
+
+impl DatetimeFormatter {
+    pub fn qiita_to(datetime: &String) -> String {
+        let naive_datetime =
+            NaiveDateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%:z").unwrap();
+        naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+    }
+    pub fn youtube_to(datetime: &String) -> String {
+        println!("{}", datetime);
+        let naive_datetime =
+            NaiveDateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%Z").unwrap();
+        naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+    }
 }

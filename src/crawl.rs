@@ -1,7 +1,8 @@
-use crate::article::{Article, Media, QiitaArticle};
+use crate::article::{Article, DatetimeFormatter, Media, QiitaArticle};
 use crate::store;
 use crate::store::model::store_rdb;
 use crate::utils::errors::MyError;
+use actix_web::HttpResponse;
 use async_trait::async_trait;
 use chrono::Local;
 use reqwest::{self, Client};
@@ -28,50 +29,76 @@ pub async fn crawl() -> Result<Vec<Article>, MyError> {
     Ok(articles)
 }
 
-pub async fn youtube_crawl_unauthorized() -> Result<(), MyError> {
+pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
+    let crawled_at = Local::now().naive_local().to_string();
     let api_key = env::var("YOUTUBE_API_KEY").expect("youtube api key is not set");
     let channel_id = env::var("YOUTUBE_CHANNEL_ID").expect("youtube channel id is not set");
-
     let client = reqwest::Client::new();
-    let res = client
-        .get("https://www.googleapis.com/youtube/v3/playlists")
-        .query(&[
-            ("key", api_key.clone()),
-            ("channelId", channel_id.clone()),
-            ("part", "id".to_string()),
-            ("pageToken", "".to_string()),
-        ])
-        .send()
-        .await?
-        .text()
-        .await?;
-
-    println!("{:?}", res);
-    let mut nest_page_token = "".to_string();
-    let playlistres: PlayListRes = serde_json::from_str(&res)?;
-    let playlist = playlistres.items;
-    for playlist in playlist {
+    let mut playlists = vec![];
+    let mut next_page_token_for_playlists = "".to_string();
+    // playlist一覧を取得
+    // nextTokenがなくなるまで全取得
+    loop {
         let res = client
-            .get("https://www.googleapis.com/youtube/v3/playlistItems")
+            .get("https://www.googleapis.com/youtube/v3/playlists")
             .query(&[
                 ("key", api_key.clone()),
-                ("playlistId", playlist.id),
+                ("channelId", channel_id.clone()),
                 ("part", "id".to_string()),
-                ("part", "snippet".to_string()),
+                ("pageToken", next_page_token_for_playlists),
             ])
             .send()
             .await?
             .text()
             .await?;
-        println!("{:?}", res);
-        let playlistitemsres: PlayListItemRes = serde_json::from_str(&res)?;
-
-        println!("{:?}", playlistitemsres);
-        let playlistitems = playlistitemsres.items;
-        println!("{:?}", playlistitems);
+        let mut playlistres: PlayListRes = serde_json::from_str(&res)?;
+        playlists.append(&mut playlistres.items);
+        match playlistres.next_page_token {
+            Some(t) => next_page_token_for_playlists = t,
+            None => break,
+        }
     }
+    // 各playlist一覧からitemを取得
+    // nextTokenがなくなるまで全取得
+    let mut playlistitems = vec![];
+    let mut next_page_token_for_playlistitems = "".to_string();
+    for playlist in playlists {
+        println!("{:?}", playlist);
+        println!("{}", playlistitems.len());
+        loop {
+            let res = client
+                .get("https://www.googleapis.com/youtube/v3/playlistItems")
+                .query(&[
+                    ("key", api_key.clone()),
+                    ("playlistId", playlist.id.clone()),
+                    ("part", "id".to_string()),
+                    ("part", "snippet".to_string()),
+                    ("part", "contentDetails".to_string()),
+                    ("maxResults", 50.to_string()),
+                    ("pageToken", next_page_token_for_playlistitems.clone()),
+                ])
+                .send()
+                .await?
+                .text()
+                .await?;
+            let mut playlistitemsres: PlayListItemRes = serde_json::from_str(&res)?;
 
-    Ok(())
+            println!("{}", playlistitemsres.items.len());
+            playlistitems.append(&mut playlistitemsres.items);
+
+            match playlistitemsres.next_page_token {
+                Some(t) => next_page_token_for_playlistitems = t,
+                None => break,
+            }
+        }
+    }
+    println!("{}", playlistitems.len());
+    let articles = playlistitems
+        .iter()
+        .map(|playlistitem| playlistitem.to_article(Media::Youtube.to_string(), crawled_at.clone()))
+        .collect::<Vec<Article>>();
+
+    Ok(articles)
 }
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -96,7 +123,26 @@ struct PlayListItemRes {
 struct PlayListItem {
     id: String,
     snippet: PlayListItemSnippet,
-    content_details: Option<ContentDetail>,
+    content_details: ContentDetail,
+}
+
+impl PlayListItem {
+    pub fn to_article(&self, media: String, crawled_at: String) -> Article {
+        Article {
+            id: self.id.clone(),
+            title: self.snippet.title.clone(),
+            auther: "".to_string(),
+            media,
+            url: format!(
+                "https://www.youtube.com/watch?v={}",
+                self.content_details.video_id
+            ),
+            summary: self.snippet.description.clone(),
+            // publiced_atはリストに入れられた日なので、コンテンツの作成日ではないが、やむをえず
+            created_at: DatetimeFormatter::youtube_to(&self.snippet.published_at),
+            crawled_at,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -114,11 +160,14 @@ struct ContentDetail {
     video_id: String,
 }
 
-pub fn youtube_crawl_authorized() -> Result<(), MyError> {
+pub async fn youtube_crawl_authorized() -> Result<HttpResponse, MyError> {
+    // korewo jissou
+    // https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps?hl=ja#httprest
     let oauth_client =
         env::var("YOUTUBE_OAUTH_CLIENT_ID").expect("youtube oauth client id not set");
     let client = reqwest::Client::new();
     let url = "https://accounts.google.com/o/oauth2/v2/auth";
+    let state = "hogehoge".to_string();
     let params = [
         ("client_id", oauth_client),
         ("redirect_url", "http://localhost:8000".to_string()),
@@ -127,12 +176,15 @@ pub fn youtube_crawl_authorized() -> Result<(), MyError> {
             "scope",
             "https://www.googleapis.com/auth/youtube.readonly".to_string(),
         ),
-        // ("access_type",),
-        // ("state",),
+        ("state", state),
+        ("include_granted_scopes", true.to_string()), // ("access_type",),
+                                                      // ("state",),
     ];
-    // korewo jissou
-    // https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps?hl=ja#httprest
-    Ok(())
+    let res = client.get(url).query(&params).send().await?.text().await?;
+    println!("{:?}", res);
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(res))
 }
 
 pub async fn crawl_to_update(latest_one: Article) -> Result<Vec<Article>, MyError> {

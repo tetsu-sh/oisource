@@ -67,10 +67,18 @@ impl MutationRoot {
         Ok(res)
     }
 
-    async fn youtube_crawl(&self) -> Result<String, MyError> {
-        crawl::youtube_crawl_unauthorized().await?;
-        Ok("ok".to_string())
+    async fn youtube_crawl(&self) -> Result<Vec<Article>, MyError> {
+        let res = crawl::youtube_crawl_unauthorized().await?;
+        let pool = utils::db::establish_connection();
+        let conn = pool.get()?;
+        store::model::store_rdb(&conn, &res);
+        Ok(res)
     }
+
+    // async fn youtube_crawl_with_auth(&self) -> Result<HttpResponse, MyError> {
+    //     let res = crawl::youtube_crawl_authorized().await?;
+    //     Ok(res)
+    // }
 
     async fn gen_csv_from_store(&self) -> Result<Vec<Article>, MyError> {
         let pool = utils::db::establish_connection();
@@ -92,6 +100,11 @@ async fn index_playground() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(source))
+}
+
+async fn authorize() -> Result<HttpResponse> {
+    let res = crawl::youtube_crawl_authorized().await?;
+    Ok(res)
 }
 
 #[actix_web::main] // or #[tokio::main]
@@ -131,6 +144,6 @@ pub fn api(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api")
             .service(web::resource("/").guard(guard::Get()).to(index_playground))
-            .service(web::resource("/").guard(guard::Get()).to(index)),
+            .service(web::resource("/").guard(guard::Post()).to(index)), // .service(web::resource("/auth").guard(guard::Post()).to(authorize)),
     );
 }
