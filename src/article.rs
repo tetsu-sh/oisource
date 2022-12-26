@@ -21,6 +21,12 @@ pub struct QiitaArticle {
     title: String,
     url: String,
     created_at: String,
+    user: QiitaUser,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct QiitaUser {
+    name: String,
 }
 
 impl QiitaArticle {
@@ -28,7 +34,7 @@ impl QiitaArticle {
         Article {
             id: self.id.clone(),
             title: self.title.clone(),
-            auther: "".to_string(),
+            auther: self.user.name.clone(),
             media,
             url: self.url.clone(),
             summary: "".to_string().clone(),

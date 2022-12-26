@@ -45,6 +45,7 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
                 ("key", api_key.clone()),
                 ("channelId", channel_id.clone()),
                 ("part", "id".to_string()),
+                ("part", "snippet".to_string()),
                 ("pageToken", next_page_token_for_playlists),
             ])
             .send()
@@ -60,7 +61,7 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
     }
     // 各playlist一覧からitemを取得
     // nextTokenがなくなるまで全取得
-    let mut playlistitems = vec![];
+    let mut articles = vec![];
     let mut next_page_token_for_playlistitems = "".to_string();
     for playlist in playlists {
         loop {
@@ -79,9 +80,19 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
                 .await?
                 .text()
                 .await?;
-            let mut playlistitemsres: PlayListItemRes = serde_json::from_str(&res)?;
-
-            playlistitems.append(&mut playlistitemsres.items);
+            let playlistitemsres: PlayListItemRes = serde_json::from_str(&res)?;
+            let mut playlistitems = playlistitemsres
+                .items
+                .iter()
+                .map(|playlistitem| {
+                    playlistitem.to_article(
+                        Media::Youtube.to_string(),
+                        crawled_at.clone(),
+                        playlist.snippet.title.clone(),
+                    )
+                })
+                .collect::<Vec<Article>>();
+            articles.append(&mut playlistitems);
 
             match playlistitemsres.next_page_token {
                 Some(t) => next_page_token_for_playlistitems = t,
@@ -89,10 +100,6 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
             }
         }
     }
-    let articles = playlistitems
-        .iter()
-        .map(|playlistitem| playlistitem.to_article(Media::Youtube.to_string(), crawled_at.clone()))
-        .collect::<Vec<Article>>();
 
     Ok(articles)
 }
@@ -106,6 +113,12 @@ struct PlayListRes {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 struct PlayList {
     id: String,
+    snippet: PlayListSnippet,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct PlayListSnippet {
+    title: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -123,11 +136,12 @@ struct PlayListItem {
 }
 
 impl PlayListItem {
-    pub fn to_article(&self, media: String, crawled_at: String) -> Article {
+    pub fn to_article(&self, media: String, crawled_at: String, playlist_name: String) -> Article {
         Article {
             id: self.id.clone(),
             title: self.snippet.title.clone(),
-            auther: "".to_string(),
+            // autherが取れない。
+            auther: playlist_name,
             media,
             url: format!(
                 "https://www.youtube.com/watch?v={}",

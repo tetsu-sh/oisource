@@ -33,6 +33,12 @@ const columns: GridColDef[] = [
     ),
   },
   {
+    field: "summary",
+    headerName: "Summary",
+    width: 500,
+    sortable: true,
+  },
+  {
     field: "createdAt",
     headerName: "created_at",
     type: "datetime",

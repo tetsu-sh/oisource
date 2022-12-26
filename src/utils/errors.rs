@@ -6,7 +6,7 @@ use reqwest::Error as ReqwestError;
 use serde_json::json;
 use serde_json::Error as SerdeJsonError;
 use serde_json::Value as JsonValue;
-// use strum::ParseError as StrumParseError;
+use strum::ParseError as StrumParseError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -97,11 +97,11 @@ impl From<ReqwestError> for MyError {
     }
 }
 
-// impl From<StrumParseError> for MyError {
-//     fn from(err: StrumParseError) -> Self {
-//         MyError::BadRequest(json!({ "error": err.to_string() }))
-//     }
-// }
+impl From<StrumParseError> for MyError {
+    fn from(err: StrumParseError) -> Self {
+        MyError::BadRequest(json!({ "error": err.to_string() }))
+    }
+}
 
 // impl From<JwtError> for MyError {
 //     fn from(err: JwtError) -> Self {

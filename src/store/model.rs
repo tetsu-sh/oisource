@@ -45,7 +45,7 @@ impl ArticleRDB {
         Ok(())
     }
     fn store_batch(conn: &MysqlConnection, records: Vec<ArticleRDB>) -> Result<(), MyError> {
-        diesel::insert_into(articles::table)
+        diesel::replace_into(articles::table)
             .values(records)
             .execute(conn)?;
         Ok(())
