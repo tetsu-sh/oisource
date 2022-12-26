@@ -63,8 +63,6 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
     let mut playlistitems = vec![];
     let mut next_page_token_for_playlistitems = "".to_string();
     for playlist in playlists {
-        println!("{:?}", playlist);
-        println!("{}", playlistitems.len());
         loop {
             let res = client
                 .get("https://www.googleapis.com/youtube/v3/playlistItems")
@@ -83,7 +81,6 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
                 .await?;
             let mut playlistitemsres: PlayListItemRes = serde_json::from_str(&res)?;
 
-            println!("{}", playlistitemsres.items.len());
             playlistitems.append(&mut playlistitemsres.items);
 
             match playlistitemsres.next_page_token {
@@ -92,7 +89,6 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
             }
         }
     }
-    println!("{}", playlistitems.len());
     let articles = playlistitems
         .iter()
         .map(|playlistitem| playlistitem.to_article(Media::Youtube.to_string(), crawled_at.clone()))
@@ -181,7 +177,6 @@ pub async fn youtube_crawl_authorized() -> Result<HttpResponse, MyError> {
                                                       // ("state",),
     ];
     let res = client.get(url).query(&params).send().await?.text().await?;
-    println!("{:?}", res);
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(res))

@@ -70,8 +70,6 @@ impl ArticleRDB {
     }
 
     fn from_domain(article: &Article) -> ArticleRDB {
-        println!("{}", article.created_at);
-        println!("{}", article.crawled_at);
         ArticleRDB {
             id: article.id.clone(),
             title: article.title.clone(),

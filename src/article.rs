@@ -52,7 +52,6 @@ impl DatetimeFormatter {
         naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()
     }
     pub fn youtube_to(datetime: &String) -> String {
-        println!("{}", datetime);
         let naive_datetime =
             NaiveDateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%Z").unwrap();
         naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()
