@@ -80,11 +80,11 @@ impl MutationRoot {
     //     Ok(res)
     // }
 
-    async fn gen_csv_from_store(&self) -> Result<Vec<Article>, MyError> {
+    async fn gen_json_from_store(&self) -> Result<Vec<Article>, MyError> {
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
         let res = fetch::fetch(&conn)?;
-        output::write_csv(&res);
+        output::write_json(&res);
         Ok(res)
     }
 }

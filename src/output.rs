@@ -1,9 +1,8 @@
 use crate::article::Article;
-use csv::Writer;
+use std::{fs::File, io::Write};
 
-pub fn write_csv(records: &Vec<Article>) {
-    let mut wtr = Writer::from_path("test.csv").unwrap();
-    for record in records.iter() {
-        wtr.serialize(record);
-    }
+pub fn write_json(records: &Vec<Article>) {
+    let s = serde_json::to_string(records).unwrap();
+    let mut file = File::create("./source/source.json").unwrap();
+    file.write_all(s.as_bytes()).unwrap();
 }
