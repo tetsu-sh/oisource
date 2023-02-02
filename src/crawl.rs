@@ -39,20 +39,13 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
     // playlist一覧を取得
     // nextTokenがなくなるまで全取得
     loop {
-        let res = client
-            .get("https://www.googleapis.com/youtube/v3/playlists")
-            .query(&[
-                ("key", api_key.clone()),
-                ("channelId", channel_id.clone()),
-                ("part", "id".to_string()),
-                ("part", "snippet".to_string()),
-                ("pageToken", next_page_token_for_playlists),
-            ])
-            .send()
-            .await?
-            .text()
-            .await?;
-        let mut playlistres: PlayListRes = serde_json::from_str(&res)?;
+        let mut playlistres = fetch_youtube_playlists(
+            &client,
+            &api_key,
+            &channel_id,
+            &next_page_token_for_playlists,
+        )
+        .await?;
         playlists.append(&mut playlistres.items);
         match playlistres.next_page_token {
             Some(t) => next_page_token_for_playlists = t,
@@ -65,22 +58,13 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
     let mut next_page_token_for_playlistitems = "".to_string();
     for playlist in playlists {
         loop {
-            let res = client
-                .get("https://www.googleapis.com/youtube/v3/playlistItems")
-                .query(&[
-                    ("key", api_key.clone()),
-                    ("playlistId", playlist.id.clone()),
-                    ("part", "id".to_string()),
-                    ("part", "snippet".to_string()),
-                    ("part", "contentDetails".to_string()),
-                    ("maxResults", 50.to_string()),
-                    ("pageToken", next_page_token_for_playlistitems.clone()),
-                ])
-                .send()
-                .await?
-                .text()
-                .await?;
-            let playlistitemsres: PlayListItemRes = serde_json::from_str(&res)?;
+            let playlistitemsres = fetch_youtube_items(
+                &client,
+                &api_key,
+                &playlist.id,
+                &next_page_token_for_playlistitems,
+            )
+            .await?;
             let mut playlistitems = playlistitemsres
                 .items
                 .iter()
@@ -103,6 +87,54 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
 
     Ok(articles)
 }
+/// if items exists then return next_page_token
+async fn fetch_youtube_items(
+    client: &Client,
+    api_key: &str,
+    playlist_id: &str,
+    page_token: &str,
+) -> Result<PlayListItemRes, MyError> {
+    let raw_res = client
+        .get(YOUTUBE_API_BASE_URL.to_owned() + "v3/playlistItems")
+        .query(&[
+            ("key", api_key),
+            ("playlistId", playlist_id),
+            ("part", "id"),
+            ("part", "snippet"),
+            ("part", "contentDetails"),
+            ("maxResults", "50"),
+            ("pageToken", page_token),
+        ])
+        .send()
+        .await?
+        .text()
+        .await?;
+    Ok(serde_json::from_str::<PlayListItemRes>(&raw_res)?)
+}
+
+async fn fetch_youtube_playlists(
+    client: &Client,
+    api_key: &str,
+    channel_id: &str,
+    page_token: &str,
+) -> Result<PlayListRes, MyError> {
+    let res = client
+        .get(YOUTUBE_API_BASE_URL.to_owned() + "v3/playlists")
+        .query(&[
+            ("key", api_key),
+            ("channelId", channel_id),
+            ("part", "id"),
+            ("part", "snippet"),
+            ("pageToken", page_token),
+        ])
+        .send()
+        .await?
+        .text()
+        .await?;
+    let playlistres: PlayListRes = serde_json::from_str(&res)?;
+    Ok(playlistres)
+}
+
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
