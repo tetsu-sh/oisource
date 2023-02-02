@@ -9,6 +9,9 @@ use reqwest::{self, Client};
 use serde_json::json;
 use std::{collections::HashMap, env};
 
+const YOUTUBE_API_BASE_URL: &str = "https://www.googleapis.com/youtube/";
+const TWITTER_API_BASE_URL: &str = "https://api.twitter.com/2/";
+
 pub async fn crawl() -> Result<Vec<Article>, MyError> {
     // qiita
     let access_token = env::var("QIITA_ACCESS_TOKEN").expect("qiita access token is not set");
@@ -27,6 +30,121 @@ pub async fn crawl() -> Result<Vec<Article>, MyError> {
         page_num += 1;
     }
     Ok(articles)
+}
+
+pub async fn twitter_crawl() -> Result<Vec<Article>, MyError> {
+    const media: &str = "twitter";
+    let crawled_at = Local::now().naive_local().to_string();
+    let twitter_user_id = env::var("TWITTER_USER_ID").expect("twitter user id is not set");
+    let bearer_token = env::var("TWITTER_BEARER_TOKEN").expect("twitter bearer token is not set");
+
+    let client = reqwest::Client::new();
+    let mut next_page_token = "".to_string();
+    let mut articles = vec![];
+    loop {
+        let favorite_res =
+            fetch_twitter_favorite(&client, &twitter_user_id, &bearer_token, &next_page_token)
+                .await?;
+        // usersから該当のuserをauther_idで検索する
+        let mut part_of_articles = favorite_res
+            .data
+            .into_iter()
+            .map(|tweet| {
+                tweet.to_article(
+                    favorite_res
+                        .includes
+                        .users
+                        .iter()
+                        .find(|&user| &user.id == &tweet.auther_id)
+                        .unwrap()
+                        .username
+                        .clone(),
+                    media.to_owned(),
+                    crawled_at.clone(),
+                )
+            })
+            .collect::<Vec<Article>>();
+        articles.append(&mut part_of_articles);
+        match favorite_res.meta.next_token {
+            Some(t) => next_page_token = t,
+            None => break,
+        }
+    }
+    Ok(articles)
+}
+
+async fn fetch_twitter_favorite(
+    client: &Client,
+    user_id: &str,
+    bearer_token: &str,
+    page_token: &str,
+) -> Result<FavoriteRes, MyError> {
+    let query_params = [
+        ("pagenation_token", page_token.to_string()),
+        ("expansions", "auther_id".to_string()),
+        ("tweet.fields", "created_at".to_string()),
+    ];
+    let raw_res = client
+        .get(format!(
+            "{}users/{}/liked_tweets",
+            TWITTER_API_BASE_URL, user_id
+        ))
+        .query(&query_params)
+        .bearer_auth(bearer_token)
+        .send()
+        .await?
+        .text()
+        .await?;
+    return Ok(serde_json::from_str::<FavoriteRes>(&raw_res)?);
+}
+
+/// twitter favorite api response schema.
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct FavoriteRes {
+    data: Vec<Tweet>,
+    meta: TweetMeta,
+    includes: Expansion,
+}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct Expansion {
+    users: Vec<TweetUser>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct TweetUser {
+    id: String,
+    name: String,
+    username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct TweetMeta {
+    result_count: isize,
+    next_token: Option<String>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct Tweet {
+    edit_history_tweet_ids: Vec<String>,
+    id: String,
+    auther_id: String,
+    created_at: String,
+    text: String,
+}
+
+impl Tweet {
+    fn to_article(&self, auther: String, media: String, crawled_at: String) -> Article {
+        Article {
+            id: self.id.clone(),
+            title: self.text.clone(),
+            auther: auther.clone(),
+            media,
+            url: format!("https://twitter.com/{}/status/{}", auther, self.id),
+            // summaryはないので、text.
+            summary: self.text.clone(),
+            created_at: DatetimeFormatter::twitter_to(&self.created_at),
+            crawled_at,
+        }
+    }
 }
 
 pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {

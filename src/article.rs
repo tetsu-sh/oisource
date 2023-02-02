@@ -62,4 +62,9 @@ impl DatetimeFormatter {
             NaiveDateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%Z").unwrap();
         naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()
     }
+    pub fn twitter_to(datetime: &String) -> String {
+        let naive_datetime =
+            NaiveDateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S.%Z").unwrap();
+        naive_datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+    }
 }

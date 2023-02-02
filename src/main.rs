@@ -80,6 +80,12 @@ impl MutationRoot {
     //     Ok(res)
     // }
 
+    async fn twitter_crawl(&self) -> Result<Vec<Article>, MyError> {
+        let res = crawl::twitter_crawl().await?;
+
+        Ok(res)
+    }
+
     async fn gen_json_from_store(&self) -> Result<Vec<Article>, MyError> {
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
