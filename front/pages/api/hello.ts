@@ -4,7 +4,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 type Article = {
   id: string;
   title: string;
-  auther: string;
+  author: string;
   media: string;
   url: string;
   summary: string;

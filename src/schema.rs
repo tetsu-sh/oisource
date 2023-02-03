@@ -4,7 +4,7 @@ diesel::table! {
     articles (id) {
         id -> Varchar,
         title -> Varchar,
-        auther -> Varchar,
+        author -> Varchar,
         media -> Varchar,
         url -> Varchar,
         summary -> Varchar,

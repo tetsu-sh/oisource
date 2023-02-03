@@ -29,7 +29,7 @@ pub fn latest_one(conn: &MysqlConnection, media: Media) -> Result<Article, MyErr
 pub struct ArticleRDB {
     pub id: String,
     pub title: String,
-    pub auther: String,
+    pub author: String,
     pub media: String,
     pub url: String,
     pub summary: String,
@@ -73,7 +73,7 @@ impl ArticleRDB {
         ArticleRDB {
             id: article.id.clone(),
             title: article.title.clone(),
-            auther: article.author.clone(),
+            author: article.author.clone(),
             media: article.media.clone(),
             url: article.url.clone(),
             summary: article.summary.clone(),
@@ -88,7 +88,7 @@ impl ArticleRDB {
         Article {
             id: self.id.clone(),
             title: self.title.clone(),
-            author: self.auther.clone(),
+            author: self.author.clone(),
             media: self.media.clone(),
             url: self.url.clone(),
             summary: self.summary.clone(),
