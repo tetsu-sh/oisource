@@ -45,26 +45,32 @@ pub async fn twitter_crawl() -> Result<Vec<Article>, MyError> {
         let favorite_res =
             fetch_twitter_favorite(&client, &twitter_user_id, &bearer_token, next_page_token)
                 .await?;
-        // usersから該当のuserをauthor_idで検索する
-        let mut part_of_articles = favorite_res
-            .data
-            .into_iter()
-            .map(|tweet| {
-                tweet.to_article(
-                    favorite_res
-                        .includes
-                        .users
-                        .iter()
-                        .find(|&user| user.id == tweet.author_id)
-                        .unwrap()
-                        .username
-                        .clone(),
-                    media.to_owned(),
-                    crawled_at.clone(),
-                )
-            })
-            .collect::<Vec<Article>>();
-        articles.append(&mut part_of_articles);
+        match favorite_res.data {
+            Some(data) => {
+                // usersから該当のuserをauthor_idで検索する
+                let mut part_of_articles = data
+                    .into_iter()
+                    .map(|tweet| {
+                        tweet.to_article(
+                            favorite_res
+                                .includes
+                                .as_ref()
+                                .unwrap()
+                                .users
+                                .iter()
+                                .find(|&user| user.id == tweet.author_id)
+                                .unwrap()
+                                .username
+                                .clone(),
+                            media.to_owned(),
+                            crawled_at.clone(),
+                        )
+                    })
+                    .collect::<Vec<Article>>();
+                articles.append(&mut part_of_articles);
+            }
+            None => break,
+        }
         match favorite_res.meta.next_token {
             Some(t) => next_page_token = Some(t),
             None => break,
@@ -109,9 +115,9 @@ async fn fetch_twitter_favorite(
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 struct FavoriteRes {
-    data: Vec<Tweet>,
+    data: Option<Vec<Tweet>>,
     meta: TweetMeta,
-    includes: Expansion,
+    includes: Option<Expansion>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 struct Expansion {
