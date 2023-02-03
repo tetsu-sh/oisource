@@ -7,7 +7,7 @@ use strum_macros::{Display, EnumString};
 pub struct Article {
     pub id: String,
     pub title: String,
-    pub auther: String,
+    pub author: String,
     pub media: String,
     pub url: String,
     pub summary: String,
@@ -34,7 +34,7 @@ impl QiitaArticle {
         Article {
             id: self.id.clone(),
             title: self.title.clone(),
-            auther: self.user.name.clone(),
+            author: self.user.name.clone(),
             media,
             url: self.url.clone(),
             summary: "".to_string().clone(),

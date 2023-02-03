@@ -73,7 +73,7 @@ impl ArticleRDB {
         ArticleRDB {
             id: article.id.clone(),
             title: article.title.clone(),
-            auther: article.auther.clone(),
+            auther: article.author.clone(),
             media: article.media.clone(),
             url: article.url.clone(),
             summary: article.summary.clone(),
@@ -88,7 +88,7 @@ impl ArticleRDB {
         Article {
             id: self.id.clone(),
             title: self.title.clone(),
-            auther: self.auther.clone(),
+            author: self.auther.clone(),
             media: self.media.clone(),
             url: self.url.clone(),
             summary: self.summary.clone(),

@@ -39,13 +39,13 @@ pub async fn twitter_crawl() -> Result<Vec<Article>, MyError> {
     let bearer_token = env::var("TWITTER_BEARER_TOKEN").expect("twitter bearer token is not set");
 
     let client = reqwest::Client::new();
-    let mut next_page_token = "".to_string();
+    let mut next_page_token: Option<String> = None;
     let mut articles = vec![];
     loop {
         let favorite_res =
-            fetch_twitter_favorite(&client, &twitter_user_id, &bearer_token, &next_page_token)
+            fetch_twitter_favorite(&client, &twitter_user_id, &bearer_token, next_page_token)
                 .await?;
-        // usersから該当のuserをauther_idで検索する
+        // usersから該当のuserをauthor_idで検索する
         let mut part_of_articles = favorite_res
             .data
             .into_iter()
@@ -55,7 +55,7 @@ pub async fn twitter_crawl() -> Result<Vec<Article>, MyError> {
                         .includes
                         .users
                         .iter()
-                        .find(|&user| &user.id == &tweet.auther_id)
+                        .find(|&user| user.id == tweet.author_id)
                         .unwrap()
                         .username
                         .clone(),
@@ -66,24 +66,30 @@ pub async fn twitter_crawl() -> Result<Vec<Article>, MyError> {
             .collect::<Vec<Article>>();
         articles.append(&mut part_of_articles);
         match favorite_res.meta.next_token {
-            Some(t) => next_page_token = t,
+            Some(t) => next_page_token = Some(t),
             None => break,
         }
     }
     Ok(articles)
 }
 
+/// itemがなくてもnext_tokenが帰ってくる。
+/// そのnext_tokenを渡して帰ってくるものにitemはない。
 async fn fetch_twitter_favorite(
     client: &Client,
     user_id: &str,
     bearer_token: &str,
-    page_token: &str,
+    page_token: Option<String>,
 ) -> Result<FavoriteRes, MyError> {
-    let query_params = [
-        ("pagenation_token", page_token.to_string()),
-        ("expansions", "auther_id".to_string()),
+    // 空文字 pagination_tokenは怒られる.
+    let mut query_params = vec![
+        ("expansions", "author_id".to_string()),
         ("tweet.fields", "created_at".to_string()),
     ];
+    if let Some(tk) = page_token {
+        query_params.push(("pagination_token", tk))
+    };
+
     let raw_res = client
         .get(format!(
             "{}users/{}/liked_tweets",
@@ -95,6 +101,7 @@ async fn fetch_twitter_favorite(
         .await?
         .text()
         .await?;
+    println!("{}", raw_res);
     return Ok(serde_json::from_str::<FavoriteRes>(&raw_res)?);
 }
 
@@ -126,19 +133,19 @@ struct TweetMeta {
 struct Tweet {
     edit_history_tweet_ids: Vec<String>,
     id: String,
-    auther_id: String,
+    author_id: String,
     created_at: String,
     text: String,
 }
 
 impl Tweet {
-    fn to_article(&self, auther: String, media: String, crawled_at: String) -> Article {
+    fn to_article(&self, author: String, media: String, crawled_at: String) -> Article {
         Article {
             id: self.id.clone(),
             title: self.text.clone(),
-            auther: auther.clone(),
+            author: author.clone(),
             media,
-            url: format!("https://twitter.com/{}/status/{}", auther, self.id),
+            url: format!("https://twitter.com/{}/status/{}", author, self.id),
             // summaryはないので、text.
             summary: self.text.clone(),
             created_at: DatetimeFormatter::twitter_to(&self.created_at),
@@ -290,8 +297,8 @@ impl PlayListItem {
         Article {
             id: self.id.clone(),
             title: self.snippet.title.clone(),
-            // autherが取れない。
-            auther: playlist_name,
+            // authorが取れない。
+            author: playlist_name,
             media,
             url: format!(
                 "https://www.youtube.com/watch?v={}",
