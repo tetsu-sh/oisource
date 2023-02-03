@@ -12,7 +12,7 @@ use std::{collections::HashMap, env};
 const YOUTUBE_API_BASE_URL: &str = "https://www.googleapis.com/youtube/";
 const TWITTER_API_BASE_URL: &str = "https://api.twitter.com/2/";
 
-pub async fn crawl() -> Result<Vec<Article>, MyError> {
+pub async fn qiita_crawl() -> Result<Vec<Article>, MyError> {
     // qiita
     let access_token = env::var("QIITA_ACCESS_TOKEN").expect("qiita access token is not set");
     let qiita_user_id = env::var("QIITA_USER_ID").expect("qiita user id is not set");

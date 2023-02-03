@@ -48,8 +48,8 @@ struct MutationRoot;
 
 #[Object]
 impl MutationRoot {
-    async fn full_crawl_and_store(&self) -> Result<Vec<Article>, MyError> {
-        let res = crawl::crawl().await?;
+    async fn qiita_crawl(&self) -> Result<Vec<Article>, MyError> {
+        let res = crawl::qiita_crawl().await?;
         let pool = utils::db::establish_connection();
         let conn = pool.get()?;
         store::model::store_rdb(&conn, &res);
@@ -82,7 +82,9 @@ impl MutationRoot {
 
     async fn twitter_crawl(&self) -> Result<Vec<Article>, MyError> {
         let res = crawl::twitter_crawl().await?;
-
+        let pool = utils::db::establish_connection();
+        let conn = pool.get()?;
+        store::model::store_rdb(&conn, &res);
         Ok(res)
     }
 
