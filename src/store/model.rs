@@ -1,5 +1,6 @@
+use std::str::FromStr;
+
 use crate::article::Article;
-use crate::article::Media;
 use crate::schema::articles;
 use crate::schema::articles::created_at;
 use crate::schema::articles::id;
@@ -7,6 +8,7 @@ use crate::utils::errors::MyError;
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
 use diesel::prelude::*;
 use diesel::MysqlConnection;
+use strum_macros::Display;
 
 pub fn store_rdb(conn: &MysqlConnection, records: &Vec<Article>) {
     let records = records
@@ -20,8 +22,38 @@ pub fn scan(conn: &MysqlConnection) -> Result<Vec<Article>, MyError> {
     records
 }
 
-pub fn latest_one(conn: &MysqlConnection, media: Media) -> Result<Article, MyError> {
+pub fn latest_one(conn: &MysqlConnection, media: &str) -> Result<Article, MyError> {
+    let media = Media::from_str(media)?;
     ArticleRDB::latest_one_in_media(conn, media)
+}
+
+#[derive(Debug, Clone, Display)]
+pub enum Media {
+    Qiita,
+    Youtube,
+    Twitter,
+}
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct ParseEnumError;
+
+impl FromStr for Media {
+    type Err = ParseEnumError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let m = match s {
+            "qiita" => Ok(Self::Qiita),
+            "youtube" => Ok(Self::Youtube),
+
+            "twitter" => Ok(Self::Twitter),
+            _ => {
+                return Err(ParseEnumError);
+            }
+        };
+        return m;
+    }
+}
+fn a() {
+    let st = Media::from_str("qiita");
 }
 
 #[derive(Debug, Queryable, Insertable, Identifiable, Clone)]

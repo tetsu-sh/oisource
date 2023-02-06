@@ -1,3 +1,5 @@
+use std::{str::FromStr, string::ParseError};
+
 use async_graphql::SimpleObject;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
@@ -44,11 +46,6 @@ impl QiitaArticle {
     }
 }
 
-#[derive(Debug, Clone, EnumString, Display)]
-pub enum Media {
-    Qiita,
-    Youtube,
-}
 pub struct DatetimeFormatter {}
 
 impl DatetimeFormatter {

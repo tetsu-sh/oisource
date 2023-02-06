@@ -1,4 +1,4 @@
-use crate::article::{Article, DatetimeFormatter, Media, QiitaArticle};
+use crate::article::{Article, DatetimeFormatter, QiitaArticle};
 use crate::store;
 use crate::store::model::store_rdb;
 use crate::utils::errors::MyError;
@@ -201,7 +201,7 @@ pub async fn youtube_crawl_unauthorized() -> Result<Vec<Article>, MyError> {
                 .iter()
                 .map(|playlistitem| {
                     playlistitem.to_article(
-                        Media::Youtube.to_string(),
+                        "media".to_string(),
                         crawled_at.clone(),
                         playlist.snippet.title.clone(),
                     )

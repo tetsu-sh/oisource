@@ -6,6 +6,7 @@ use async_graphql::{
     http::{playground_source, GraphQLPlaygroundConfig},
     EmptySubscription, Object, Schema,
 };
+use diesel::r2d2::ConnectionManager;
 use diesel::MysqlConnection;
 use dotenv::dotenv;
 
@@ -14,31 +15,33 @@ extern crate diesel;
 mod article;
 mod constants;
 mod crawl;
-mod fetch;
 mod output;
 mod schema;
 mod store;
 mod utils;
-use article::{Article, Media};
+use article::Article;
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-use log::info;
+use r2d2::PooledConnection;
 use utils::errors::MyError;
 
 struct QueryRoot;
 
+fn get_conn() -> Result<PooledConnection<ConnectionManager<MysqlConnection>>, MyError> {
+    let pool = utils::db::establish_connection();
+    let conn = pool.get()?;
+    Ok(conn)
+}
+
 #[Object]
 impl QueryRoot {
     async fn scan(&self) -> Result<Vec<Article>, MyError> {
-        let pool = utils::db::establish_connection();
-        let conn = pool.get()?;
+        let conn = get_conn()?;
         let res = store::model::scan(&conn)?;
         Ok(res)
     }
-    async fn is_latest(&self) -> Result<bool, MyError> {
-        let pool = utils::db::establish_connection();
-        let conn = pool.get()?;
-        let media = Media::Qiita;
-        let stored_one = store::model::latest_one(&conn, media)?;
+    async fn is_latest(&self, media: String) -> Result<bool, MyError> {
+        let conn = get_conn()?;
+        let stored_one = store::model::latest_one(&conn, &media)?;
         let crawled_one = crawl::latest_one().await?;
         Ok(stored_one == crawled_one)
     }
@@ -50,18 +53,15 @@ struct MutationRoot;
 impl MutationRoot {
     async fn qiita_crawl(&self) -> Result<Vec<Article>, MyError> {
         let res = crawl::qiita_crawl().await?;
-        let pool = utils::db::establish_connection();
-        let conn = pool.get()?;
+        let conn = get_conn()?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
     }
     /// 差分アップデート
     /// 追加のみ対応
-    async fn crawl_and_store(&self) -> Result<Vec<Article>, MyError> {
-        let pool = utils::db::establish_connection();
-        let conn = pool.get()?;
-        let media = Media::Qiita;
-        let latest_one = store::model::latest_one(&conn, media)?;
+    async fn crawl_and_store(&self, media: String) -> Result<Vec<Article>, MyError> {
+        let conn = get_conn()?;
+        let latest_one = store::model::latest_one(&conn, &media)?;
         let res = crawl::crawl_to_update(latest_one).await?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
@@ -69,8 +69,7 @@ impl MutationRoot {
 
     async fn youtube_crawl(&self) -> Result<Vec<Article>, MyError> {
         let res = crawl::youtube_crawl_unauthorized().await?;
-        let pool = utils::db::establish_connection();
-        let conn = pool.get()?;
+        let conn = get_conn()?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
     }
@@ -82,16 +81,14 @@ impl MutationRoot {
 
     async fn twitter_crawl(&self) -> Result<Vec<Article>, MyError> {
         let res = crawl::twitter_crawl().await?;
-        let pool = utils::db::establish_connection();
-        let conn = pool.get()?;
+        let conn = get_conn()?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
     }
 
     async fn gen_json_from_store(&self) -> Result<Vec<Article>, MyError> {
-        let pool = utils::db::establish_connection();
-        let conn = pool.get()?;
-        let res = fetch::fetch(&conn)?;
+        let conn = get_conn()?;
+        let res = store::model::scan(&conn)?;
         output::write_json(&res);
         Ok(res)
     }
@@ -122,7 +119,6 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
     let pool = utils::db::establish_connection();
-    let app_state = utils::state::AppState { pool };
     dotenv().ok();
 
     HttpServer::new(move || {

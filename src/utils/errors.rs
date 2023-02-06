@@ -9,6 +9,8 @@ use serde_json::Value as JsonValue;
 use strum::ParseError as StrumParseError;
 use thiserror::Error;
 
+use crate::store::model::ParseEnumError;
+
 #[derive(Error, Debug, PartialEq)]
 pub enum MyError {
     #[error("Internal Server Error")]
@@ -100,6 +102,12 @@ impl From<ReqwestError> for MyError {
 impl From<StrumParseError> for MyError {
     fn from(err: StrumParseError) -> Self {
         MyError::BadRequest(json!({ "error": err.to_string() }))
+    }
+}
+
+impl From<ParseEnumError> for MyError {
+    fn from(err: ParseEnumError) -> Self {
+        MyError::BadRequest(json!({"error":"parse error".to_string()}))
     }
 }
 
