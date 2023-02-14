@@ -42,7 +42,7 @@ impl QueryRoot {
     async fn is_latest(&self, media: String) -> Result<bool, MyError> {
         let conn = get_conn()?;
         let stored_one = store::model::latest_one(&conn, &media)?;
-        let crawled_one = crawl::latest_one().await?;
+        let crawled_one = crawl::qiita::latest_one().await?;
         Ok(stored_one == crawled_one)
     }
 }
@@ -52,7 +52,7 @@ struct MutationRoot;
 #[Object]
 impl MutationRoot {
     async fn qiita_crawl(&self) -> Result<Vec<Article>, MyError> {
-        let res = crawl::qiita_crawl().await?;
+        let res = crawl::qiita::qiita_crawl().await?;
         let conn = get_conn()?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
@@ -62,13 +62,13 @@ impl MutationRoot {
     async fn crawl_and_store(&self, media: String) -> Result<Vec<Article>, MyError> {
         let conn = get_conn()?;
         let latest_one = store::model::latest_one(&conn, &media)?;
-        let res = crawl::crawl_to_update(latest_one).await?;
+        let res = crawl::qiita::crawl_to_update(latest_one).await?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
     }
 
     async fn youtube_crawl(&self) -> Result<Vec<Article>, MyError> {
-        let res = crawl::youtube_crawl_unauthorized().await?;
+        let res = crawl::youtube::youtube_crawl_unauthorized().await?;
         let conn = get_conn()?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
@@ -80,7 +80,7 @@ impl MutationRoot {
     // }
 
     async fn twitter_crawl(&self) -> Result<Vec<Article>, MyError> {
-        let res = crawl::twitter_crawl().await?;
+        let res = crawl::twitter::twitter_crawl().await?;
         let conn = get_conn()?;
         store::model::store_rdb(&conn, &res);
         Ok(res)
@@ -108,7 +108,7 @@ async fn index_playground() -> Result<HttpResponse> {
 }
 
 async fn authorize() -> Result<HttpResponse> {
-    let res = crawl::youtube_crawl_authorized().await?;
+    let res = crawl::youtube::youtube_crawl_authorized().await?;
     Ok(res)
 }
 

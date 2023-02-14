@@ -17,35 +17,6 @@ pub struct Article {
     pub crawled_at: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct QiitaArticle {
-    id: String,
-    title: String,
-    url: String,
-    created_at: String,
-    user: QiitaUser,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct QiitaUser {
-    name: String,
-}
-
-impl QiitaArticle {
-    pub fn to_article(&self, media: String, crawled_at: String) -> Article {
-        Article {
-            id: self.id.clone(),
-            title: self.title.clone(),
-            author: self.user.name.clone(),
-            media,
-            url: self.url.clone(),
-            summary: "".to_string().clone(),
-            created_at: DatetimeFormatter::qiita_to(&self.created_at),
-            crawled_at,
-        }
-    }
-}
-
 pub struct DatetimeFormatter {}
 
 impl DatetimeFormatter {
